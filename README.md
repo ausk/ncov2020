@@ -32,4 +32,4 @@ http://127.0.0.1:5000/update
 ```
 
 
-![疫情状态](./ncov.png)
+![疫情状态](https://github.com/ausk/ncov2020/raw/master/ncov.png)

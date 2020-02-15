@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <!-- 引入 js -->
+
+    <script src="{{ url_for('static', filename='js/echarts/3.8.0/echarts.min.js') }}"></script>
+    <script type="text/javascript" src="static/js/echarts/3.8.0/echarts.min.js"></script>
+    <script type="text/javascript" src="static/js/echarts/map/js/china.js"></script>
+    <script type="text/javascript" src="static/js/jquery/jquery.min.js"></script>
+
+    <script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=E4805d16520de693a3fe707cdc962045"></script>
+
+    <style type="text/css">
+    .body{ margin: 0; padding: 0;border: 1px solid #e4e4e4}
+    .box{
+        width:100%;
+        height:260px;
+        display:flex;
+        margin:1px;
+    }
+    .left,.right{
+        width:300px;
+        height:260px;
+        margin:1px;
+        background-color:#999;
+    }
+    .center{
+        flex:1;
+        height:260px;
+        margin:1px;/*左右margin不会叠加*/
+        background-color:#f00;
+        border: 1px solid #e4e4e4;
+    }
+</style>
+</head>
+
+<body>
+    <div id="clock" style="width: 160px; margin: 0 auto; color: gray;"></div>
+    <div id="container" style="width: 800px; height:540px; margin: 0 auto;top: 1px"></div>
+
+    <div id="xytrend" style="width: 800px; height:260px; margin:0 auto;"></div>
+
+    <script type="text/javascript">
+
+    // 显示年月日时钟
+    $(document).ready(function(data){
+        Date.prototype.Format = function (fmt) {
+            var o = {
+                "M+": this.getMonth() + 1, // 月份
+                "d+": this.getDate(), // 日
+                "H+": this.getHours(), // 小时
+                "m+": this.getMinutes(), // 分
+                "s+": this.getSeconds(), // 秒
+                "q+": Math.floor((this.getMonth() + 3) / 3), // 季度
+                "S": this.getMilliseconds() // 毫秒
+            };
+            if (/(y+)/.test(fmt))
+                fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+            for (var k in o)
+                if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+            return fmt;
+        }  ;
+        setInterval(function(){
+            var date = new Date().Format("yyyy/MM/dd HH:mm:ss");
+            $('#clock').text(date);  //设置每秒刷新一次，显示在页面上
+        },1000) ;
+
+    });
+
+    // 更新
+    $(function () {
+        $.ajax({
+            type:'get',
+            url:'/update',
+            dataType:'json',
+            success:function (returnData) {
+                ;//
+            }
+        })
+    });
+
+
+    $(function () {
+        $.ajax({
+            type:'get',
+            url:'/query_trend',
+            dataType:'json',
+            success:function (returnData) {
+                var xnames = [
+                    ["确诊", "疑似"],
+                    ["新增确诊", "新增疑似"],
+                    ["治愈", "死亡"]
+                ];
+
+                var xtypes = ["line", "line", "bar"];
+                var xsymbols = ["circle", 'triangle', "rect"];
+                var xsymbolsizes = [6, 8, 6];
+
+                var trend = returnData.trend;
+                console.log(trend);
+                var xdata = trend.updateDate;
+                for(var i=0; i<xdata.length; ++i){
+                    var x = xdata[i];
+                    xdata[i] = x.replace(".", "月")+"日";
+                }
+
+                console.log(xdata);
+                var trendlist = trend.list;
+
+                var num = xdata.length;
+                var nseries = trendlist.length;
+
+                var series = [];
+                var names  = []
+                for(var i=0; i<nseries; i++){
+                    var name = trendlist[i].name;
+
+                    var values = trendlist[i].data;
+                    names.push(name);
+
+                    var idx = 0;
+                    for(;idx<xnames.length; ++idx){
+                        if( xnames[idx].includes(name)){
+                            break;
+                        }
+                    }
+
+                    var data = new Array();
+                    for(var k=0; k<num; k++){
+                        data.push({
+                            name: xdata[k],
+                            value: values[k],
+                        });
+                    }
+                    console.log(idx, name, xtypes[idx]);
+
+                    series.push({
+                        name: name,
+                        borderWidth: 1,
+                        symbol: xsymbols[idx],
+                        symbolSize: xsymbolsizes[idx],
+                        type: xtypes[idx],
+                        barWidth: 10,
+                        smooth: true,
+                        yAxisIndex: idx,
+                        data: data,
+                    });
+                }
+
+                //console.log(series);
+
+                var myChart = echarts.init(document.getElementById("xytrend"));
+                var json = [];
+                var option = {
+                    title: {
+                        text: "病例趋势",
+                        x: "center",
+                        textStyle: {
+                            color:'#B4B4B4',
+                            fontSize:14,
+                            fontWeight:'normal',
+                        }
+                    },
+                    calculable : true,
+                    grid: {
+                        left: "5%",
+                        right: "4%",
+                        bottom: "3%",
+                        containLabel: true
+                    },
+                    tooltip: {
+                        trigger: "axis",
+                        axisPointer: {
+                            type: "cross",
+                            label: {
+                                show: true,
+                                background: "#7B7DDC"
+                            }
+                        }
+                    },
+                    toolbox: {
+                        feature: {
+                            dataView: {show: true, readOnly: false},
+                            restore: {show: true},
+                            saveAsImage: {show: true}
+                        }
+                    },
+                    legend: {
+                        data: names,
+                        textStyle: {
+                            color: "#B4B4B4",
+                        },
+                        top: "7%",
+                    },
+                    xAxis: {
+                        type: "category",
+                        data: xdata,
+                    },
+                    yAxis: [
+                        {
+                            type: "value",
+                            name: "疑似/确诊",
+                            position: "left",
+                            offset: 70
+                        },
+                        {
+                            type: "value",
+                            name: "新增疑似/确诊",
+                            position: "left"
+                        },
+                        {
+                            type: "value",
+                            name: "治愈/死亡",
+                            position: "right"
+                        }
+                    ],
+                    series: series,
+                };
+
+                myChart.setOption(option);
+                myChart.setOption(option);
+            }
+        })
+    });
+    </script>
+
+
+    <script type="text/javascript">
+    $(function () {
+        $.ajax({
+            type:'get',
+            url:'/query_confirm',
+            dataType:'json',
+            success:function (returnData) {
+                console.log(returnData);
+                var dom = document.getElementById("container");
+                var myChart = echarts.init(dom);
+                var mapName = "china";
+                var geoCoordMap = {};
+                myChart.showLoading();
+                var mapFeatures = echarts.getMap(mapName).geoJson.features;
+                myChart.hideLoading();
+
+                var vmin = 1;
+                var vmax = 10000;
+                var smax = 100;
+                var smin = 20;
+
+                // 名称: 经纬度
+                mapFeatures.forEach(function(v){
+                    var name = v.properties.name;
+                    geoCoordMap[name] = v.properties.cp;
+                });
+
+                // 名称：经纬度，值
+                var convertData = function(data) {
+                    var res = [];
+                    for (var i = 0; i < data.length; i++) {
+                        var geoCoord = geoCoordMap[data[i].name];
+                        if (geoCoord) {
+                            res.push({
+                                name: data[i].name,
+                                value: geoCoord.concat(data[i].value),
+                            });
+                        }
+                    }
+                    return res;
+                };
+
+                if (returnData.status == 200){
+                    var mapName = "china";
+                    option = {
+                        title: {
+                            text: 'ncov 新型肺炎疫情',
+                            subtext: '数据来源自：全国各地卫健委（百度疫情）',
+                            left: 'center'
+                        },
+                        tooltip: {
+
+                            trigger: 'axis', // hover触发器
+                            axisPointer: { // 坐标轴指示器，坐标轴触发有效
+                                type: 'shadow', // 默认为直线，可选为：'line' | 'shadow'
+                                shadowStyle: {
+                                    color: 'rgba(150,150,150,0.1)' //hover颜色
+                                }
+                            },
+                            formatter: function(params) {
+                                            var res = params.name+'<br/>';
+                                            var myseries = option.series;
+                                            for (var i = 0; i < myseries.length; i++) {
+                                                for(var j=0;j<myseries[i].data.length;j++){
+                                                    if(myseries[i].data[j].name==params.name){
+                                                        res+=myseries[i].name +' : '+myseries[i].data[j].value+'</br>';
+                                                    }
+                                                }
+                                                // 只显示第一个 serie。
+                                                break;
+                                            }
+                                            return res;
+                                        }
+                        },
+                        legend: {
+                            orient: 'vertical',
+                            left: 'left',
+                            data:['确诊人数']
+                        },
+                        visualMap: {
+                            type: "piecewise",
+                            left: 'left',
+                            top: 'bottom',
+                            seriesIndex: [0],
+
+                            inRange: {
+                                color: ['#00467F', '#A5CC82'] // 蓝绿
+                            },
+
+                            //text: ['高', '低'],           // 文本，默认为数值文本
+                            calculable: true,
+                            pieces: [
+                                { min: 1200, color: '#6F161D', label: ">1200"},
+                                { min:  500, max: 1199, color: '#CB2A2E', label: " 500 ~ 1199"},
+                                { min:  200, max:  499, color: '#E55A4D', label: " 200 ~  499"},
+                                { min:  100, max:  199, color: '#ffb199', label: " 100 ~  199"},
+                                { min:   50, max:   99, color: '#FFE0D7', label: "  50 ~   99"},
+                                { min:   50, max:   99, color: '#FFE0D7', label: "  50 ~   99"},
+                                { min:    1, max:   49, color: '#FDEBCF', label: "   1 ~   49"},
+                            ],
+                        },
+
+                        toolbox: {
+                            show: true,
+                            orient: 'vertical',
+                            left: 'right',
+                            top: 'center',
+                            feature: {
+                                dataView: {readOnly: false},
+                                restore: {},
+                                saveAsImage: {}
+                            }
+                        },
+
+                        geo: {
+                             show: false,
+                             map: mapName,
+                             label: {
+                                 normal: {
+                                     show: false
+                                 },
+                                 emphasis: {
+                                     show: false
+                                 }
+                             },
+                             roam: false,
+
+                            itemStyle: {
+                                normal: {
+                                    borderColor: 'rgba(147, 235, 248, 1)',
+                                    borderWidth: 1,
+                                    areaColor: {
+                                        type: 'radial',
+                                        x: 0.5,
+                                        y: 0.5,
+                                        r: 0.8,
+                                        colorStops: [{
+                                            offset: 0,
+                                            color: 'rgba(147, 235, 248, 0)' // 0% 处的颜色
+                                        }, {
+                                            offset: 1,
+                                            color: 'rgba(147, 235, 248, .2)' // 100% 处的颜色
+                                        }],
+                                        globalCoord: false // 缺省为 false
+                                    },
+                                    shadowColor: 'rgba(128, 217, 248, 1)',
+                                    // shadowColor: 'rgba(255, 255, 255, 1)',
+                                    shadowOffsetX: -2,
+                                    shadowOffsetY: 2,
+                                    shadowBlur: 10
+                                },
+                                emphasis: {
+                                    areaColor: '#389BB7',
+                                    borderWidth: 0
+                                }
+                            }
+                        },
+                        series: [
+                            {
+                                name: '确诊人数',
+                                type: 'map',
+                                mapType: mapName,
+                                aspectScale: 0.75,
+                                showLegendSymbol: false,
+                                roam: false,
+                                tooltip:{
+                                    show:true
+                                },
+                                label: {
+                                    normal: {
+                                        show: true,
+                                        textStyle: {
+                                            color: '#000',
+                                            fontSize: 10,
+                                        }
+                                    },
+                                    // 鼠标滑过时，可以通过修改字体和颜色来强调。
+                                    emphasis: {
+                                        show: false,
+                                        textStyle:{
+                                            color: "#000",
+                                            fontSize: 12
+                                        }
+                                    }
+                                },
+                                data:returnData.confirm
+                            },
+                             {
+                                 name: '点',
+                                 type: 'scatter',
+                                 coordinateSystem: 'geo',
+                                 symbol: 'pin', //气泡
+                                 symbolSize: function(val) {
+                                     return Math.log2(val[2]+100)*3;
+                                 },
+                                 label: {
+                                     normal: {
+                                         show: true,
+                                         textStyle: {
+                                             color: '#E0FFFF', // 气泡字体颜色
+                                             fontSize: 9,
+                                         }
+                                     }
+                                 },
+                                 itemStyle: {
+                                     normal: {
+                                         color: 'rgba(0,0,0,0.6)', //气泡标志颜色
+                                     }
+                                 },
+                                 zlevel: 6,
+                                 data: convertData(returnData.confirm),
+                             },
+                            {
+                                name: 'Top 5',
+                                type: 'effectScatter',
+                                coordinateSystem: 'geo',
+                                data: convertData(returnData.confirm.sort(function(a, b) {
+                                    return b.value - a.value;
+                                }).slice(0, 5)),
+                                symbolSize: function(val) {
+                                    return Math.log2(val[2]+1000);
+                                },
+                                showEffectOn: 'render',
+                                rippleEffect: {
+                                    brushType: 'stroke'
+                                },
+                                hoverAnimation: true,
+                                label: {
+                                    normal: {
+                                        formatter: '{b}',
+                                        position: 'right',
+                                        show: true
+                                    }
+                                },
+                                itemStyle: {
+                                    normal: {
+                                        color: 'yellow',
+                                        shadowBlur: 10,
+                                        shadowColor: 'yellow'
+                                    }
+                                },
+                                zlevel: 1
+                            }
+                        ]
+                    };
+                }
+                myChart.setOption(option);
+            }
+        })
+    });
+</script>
+</body>
+
+</html>
